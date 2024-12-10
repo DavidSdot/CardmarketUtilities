@@ -19,8 +19,9 @@
  *
  * Changelog:
  * - v1.0.0: Initial release
+ * - v1.0.1: Add shopping cart settings
  *
- * Last Updated: 2024-12-10
+ * Last Updated: 2024-12-11
  */
 
 "use strict";
@@ -60,24 +61,72 @@ const Utilities = {
 			$(`#${alertId}`).alert('close');
 			$('#AlertContainer').empty();
 		}, 5000);
+	},
+	
+	// sanitize user inputs
+	sanitizeHTML(str) {
+		const tempDiv = document.createElement("div");
+		tempDiv.innerText = str;
+		return tempDiv.innerHTML;
 	}
 };
 
 // ShoppingCart module
 const ShoppingCart = {
+	
     sellers: [],
+
+	sellersStorage: "CardmarketUtilitiesShoppingCartHelperSellers",
 
     // Initialization
     init() {
-        this.sellers = this.getSellers();
-        this.preparePage();
+		this.addSettings();
+		this.updateSellers();
+		this.preparePage();
 		Utilities.displayMessage("Cardmarket Utilities: ShoppingCart is ready");
     },
+	
+	// Update sellers with page sellers and stored sellers
+	updateSellers(){
+		let storedSellers = this.getStoredSellers();
+		$('#CMUSCstoredSellers').empty();
+		for (const seller of storedSellers) {
+            $('#CMUSCstoredSellers').append(this.createSellerListItem(seller));
+			$(`#CMUSCstoredSellersDelete${seller}`).click(() => {
+				$(`#CMUSCstoredSellers_${seller}`).remove();
+				let storedSellers = this.getStoredSellers();
+				storedSellers = storedSellers.filter(e => e !== seller)
+				localStorage.setItem(this.sellersStorage, JSON.stringify(storedSellers));
+			});
+			
+        }
+		this.sellers = [...new Set(this.getPageSellers().concat(storedSellers))];
+	},
+	createSellerListItem(seller) {
+		return `
+			<li id="CMUSCstoredSellers_${seller}" style="margin-bottom:2px;">
+				<div class="input-group">
+					<button id="CMUSCstoredSellersDelete${seller}" class="btn btn-sm btn-outline-danger bg-white border-light text-danger">
+						<span class="fonticon-delete"></span>
+					</button>
+					<input class="form-control" value="${seller}" readonly="">
+				</div>
+			</li>
+		`;
+	},
 
-    // Retrieves the list of sellers from the page
-    getSellers() {
-        return Array.from($('span.seller-name span > a[href*="/Magic/Users/"]'))
-            .map(seller => seller.innerText);
+    // Retrieves the list of sellers from the page and the local storage
+    getPageSellers() {
+        const pageSellers = Array
+			.from($('span.seller-name span > a[href*="/Magic/Users/"]'))
+            .map(seller => seller.innerText)
+		return [...new Set(pageSellers)]
+    },
+	
+	// Retrieves the list of sellers from local storage
+    getStoredSellers() {
+		const storedSellers = JSON.parse(localStorage.getItem(this.sellersStorage)) || [];
+		return [...new Set(storedSellers)]
     },
 
     // Prepares the entire shopping cart page
@@ -158,7 +207,45 @@ const ShoppingCart = {
     // Generates the URL for the card search page of a seller
     getCardSearchPageUrl(seller, card) {
         return `${baseUrl}${language}/Magic/Users/${seller}/Offers/Singles?name=${card}&sortBy=price_asc`;
-    }
+    },
+	
+	addSettings() {
+		const settingsHTML = `
+			<div id="CMUSCSettings" class="card w-100 text-start mb-3">
+				<div class="card-body d-flex flex-column">
+					<div>
+						<h3 class="text-size-regular">Shopping Cart Helper</h3>
+						<div class="text-break">
+							<div>
+								<h2 class="small" style="margin-right: 5px;">Add Sellers</h2>
+								<div style="display: flex; align-content: center;">
+									<input id="CMUSCaddSellerInput" class="form-control form-control-sm" style="height:15px; margin-right:10px" type="text"/>
+									<button id="CMUSCaddSellerButton" type="submit" class="btn btn-sm bg-white border-light">
+										<span class="fonticon-plus"></span>
+									</button>
+								</div>
+								<ul id="CMUSCstoredSellers" style="margin-top:5px;margin-bottom:0;list-style:none;padding:0;">
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		`;
+		$('div.order-first').prepend(settingsHTML);
+		$("#CMUSCaddSellerButton").click(() => {
+			const input = $('#CMUSCaddSellerInput');
+			const sellerName = Utilities.sanitizeHTML(input.val().trim());
+			if (sellerName) {
+				let lSellers = this.getStoredSellers();
+				if (!lSellers.includes(sellerName)) {
+					lSellers.push(sellerName);
+					localStorage.setItem(this.sellersStorage, JSON.stringify(lSellers));
+					input.val('');
+				}
+			}
+			this.updateSellers();
+		});		
+	}
 };
 
 // Page navigation module
