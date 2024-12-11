@@ -167,6 +167,7 @@ const ShoppingCart = {
     // Handles search button clicks
     async handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow) {
         searchButton.prop("disabled", true);
+		$('tr[data-card="Swiftfoot Boots"]').remove();
         for (const seller of this.sellers) {
             if (seller !== sectionSeller) {
                 await this.fetchSellerDataAndDisplay(seller, cardName, cardRow);
@@ -191,10 +192,11 @@ const ShoppingCart = {
                             <td style="text-align: left;">
                                 <span><a target="_blank" href="${iframe.src}">${seller}</a></span>
                             </td>
-				<td style="text-align:left;">
-    					<div style="display: inline-flex;align-items: center;">${attributes.innerHTML}</div>
-				</td>
+							<td style="text-align:left;">
+									<div style="display: inline-flex;align-items: center;">${attributes.innerHTML}</div>
+							</td>
                             <td><i>${priceElement.innerText}</i></td>
+							<td></td>
                         </tr>`;
                     $(cardRowElement).after(priceHtml);
                 }
