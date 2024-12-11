@@ -23,7 +23,6 @@
  *
  * Last Updated: 2024-12-11
  */
-
 "use strict";
 
 // Base URL and language setup
@@ -32,19 +31,22 @@ const language = document.location.pathname.substr(1, 2);
 
 // Utility module
 const Utilities = {
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    },
+	delay(ms)
+	{
+		return new Promise(resolve => setTimeout(resolve, ms));
+	},
 
-    createHiddenIframe(src) {
-        const frameId = `iframe_${Math.random() * 1e8}`;
-        const iframe = $(`<iframe id="${frameId}" style="display:none;"></iframe>`).appendTo("body")[0];
-        iframe.src = src;
-        return iframe;
-    },
-	
+	createHiddenIframe(src)
+	{
+		const frameId = `iframe_${Math.random() * 1e8}`;
+		const iframe = $(`<iframe id="${frameId}" style="display:none;"></iframe>`).appendTo("body")[0];
+		iframe.src = src;
+		return iframe;
+	},
+
 	// Display message
-	displayMessage(text, warning) {
+	displayMessage(text, warning)
+	{
 		const alertId = `systemMessage${Math.random() * 1e8}`;
 		const alertHtml = `
 			<div role="alert" id="${alertId}" class="alert systemMessage ${(warning ? "alert-warning" : "alert-success")} alert-dismissible fade show">
@@ -57,14 +59,17 @@ const Utilities = {
 
 		$('#AlertContainer').append(alertHtml);
 
-		setTimeout(() => {
-			$(`#${alertId}`).alert('close');
+		setTimeout(() =>
+		{
+			$(`#${alertId}`)
+				.alert('close');
 			$('#AlertContainer').empty();
 		}, 5000);
 	},
-	
+
 	// sanitize user inputs
-	sanitizeHTML(str) {
+	sanitizeHTML(str)
+	{
 		const tempDiv = document.createElement("div");
 		tempDiv.innerText = str;
 		return tempDiv.innerHTML;
@@ -73,36 +78,43 @@ const Utilities = {
 
 // ShoppingCart module
 const ShoppingCart = {
-	
-    sellers: [],
+
+	sellers: [],
 
 	sellersStorage: "CardmarketUtilitiesShoppingCartHelperSellers",
 
-    // Initialization
-    init() {
+	// Initialization
+	init()
+	{
 		this.addSettings();
 		this.updateSellers();
 		this.preparePage();
 		Utilities.displayMessage("Cardmarket Utilities: ShoppingCart is ready");
-    },
-	
-	// Update sellers with page sellers and stored sellers
-	updateSellers(){
-		let storedSellers = this.getStoredSellers();
-		$('#CMUSCstoredSellers').empty();
-		for (const seller of storedSellers) {
-            $('#CMUSCstoredSellers').append(this.createSellerListItem(seller));
-			$(`#CMUSCstoredSellersDelete${seller}`).click(() => {
-				$(`#CMUSCstoredSellers_${seller}`).remove();
-				let storedSellers = this.getStoredSellers();
-				storedSellers = storedSellers.filter(e => e !== seller)
-				localStorage.setItem(this.sellersStorage, JSON.stringify(storedSellers));
-			});
-			
-        }
-		this.sellers = [...new Set(this.getPageSellers().concat(storedSellers))];
 	},
-	createSellerListItem(seller) {
+
+	// Update sellers with page sellers and stored sellers
+	updateSellers()
+	{
+		let storedSellers = this.getStoredSellers();
+		$('#CMUSCstoredSellers')
+			.empty();
+		for (const seller of storedSellers)
+		{
+			$('#CMUSCstoredSellers').append(this.createSellerListItem(seller));
+			$(`#CMUSCstoredSellersDelete${seller}`)
+				.click(() =>
+				{
+					$(`#CMUSCstoredSellers_${seller}`).remove();
+					let storedSellers = this.getStoredSellers();
+					storedSellers = storedSellers.filter(e => e !== seller)
+					localStorage.setItem(this.sellersStorage, JSON.stringify(storedSellers));
+				});
+		}
+		this.sellers = [...new Set(this.getPageSellers()
+			.concat(storedSellers))];
+	},
+	createSellerListItem(seller)
+	{
 		return `
 			<li id="CMUSCstoredSellers_${seller}" style="margin-bottom:2px;">
 				<div class="input-group">
@@ -115,42 +127,56 @@ const ShoppingCart = {
 		`;
 	},
 
-    // Retrieves the list of sellers from the page and the local storage
-    getPageSellers() {
-        const pageSellers = Array
+	// Retrieves the list of sellers from the page and the local storage
+	getPageSellers()
+	{
+		const pageSellers = Array
 			.from($('span.seller-name span > a[href*="/Magic/Users/"]'))
-            .map(seller => seller.innerText)
+			.map(seller => seller.innerText)
 		return [...new Set(pageSellers)]
-    },
-	
+	},
+
 	// Retrieves the list of sellers from local storage
-    getStoredSellers() {
+	getStoredSellers()
+	{
 		const storedSellers = JSON.parse(localStorage.getItem(this.sellersStorage)) || [];
 		return [...new Set(storedSellers)]
-    },
+	},
 
-    // Prepares the entire shopping cart page
-    async preparePage() {
-        const sections = $("section.shipment-block");
-        for (const section of sections) {
-            await this.prepareSection(section);
-        }
-    },
+	// Prepares the entire shopping cart page
+	async preparePage()
+	{
+		const sections = $("section.shipment-block");
+		for (const section of sections)
+		{
+			await this.prepareSection(section);
+		}
+	},
 
-    // Prepares a single section
-    async prepareSection(section) {
-        const sectionSeller = $(section).find('a[href*="/Magic/Users/"]').first().text();
-        const rows = $(section).find("tr[data-name]");
-        for (const row of rows) {
-            await this.prepareRow(row, sectionSeller);
-        }
-    },
+	// Prepares a single section
+	async prepareSection(section)
+	{
+		const sectionSeller = $(section)
+			.find('a[href*="/Magic/Users/"]')
+			.first()
+			.text();
+		const rows = $(section)
+			.find("tr[data-name]");
+		for (const row of rows)
+		{
+			await this.prepareRow(row, sectionSeller);
+		}
+	},
 
-    // Prepares a single card row
-    async prepareRow(cardRow, sectionSeller) {
-        const cardName = $(cardRow).attr("data-name").trim();
-        const iconsDiv = $(cardRow).find("td.info div.row");
-        iconsDiv.prepend(`
+	// Prepares a single card row
+	async prepareRow(cardRow, sectionSeller)
+	{
+		const cardName = $(cardRow)
+			.attr("data-name")
+			.trim();
+		const iconsDiv = $(cardRow)
+			.find("td.info div.row");
+		iconsDiv.prepend(`
             <div class="col-icon">
                 <button type="button" class="btn btn-sm bg-white border-light">
                     <span class="fonticon-search"></span>
@@ -158,34 +184,42 @@ const ShoppingCart = {
             </div>
         `);
 
-        const searchButton = iconsDiv.find("div.col-icon button");
-        searchButton.click(async () => {
-            await this.handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow);
-        });
-    },
+		const searchButton = iconsDiv.find("div.col-icon button");
+		searchButton.click(async () =>
+		{
+			await this.handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow);
+		});
+	},
 
-    // Handles search button clicks
-    async handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow) {
-        searchButton.prop("disabled", true);
-		$('tr[data-card="Swiftfoot Boots"]').remove();
-        for (const seller of this.sellers) {
-            if (seller !== sectionSeller) {
-                await this.fetchSellerDataAndDisplay(seller, cardName, cardRow);
-                await Utilities.delay(500);
-            }
-        }
-        searchButton.prop("disabled", false);
-    },
+	// Handles search button clicks
+	async handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow)
+	{
+		searchButton.prop("disabled", true);
+		$(`tr[data-card="${cardName}"]`).remove();
+		for (const seller of this.sellers)
+		{
+			if (seller !== sectionSeller)
+			{
+				await this.fetchSellerDataAndDisplay(seller, cardName, cardRow);
+				await Utilities.delay(500);
+			}
+		}
+		searchButton.prop("disabled", false);
+	},
 
-    // Fetches seller prices and displays them
-    async fetchSellerDataAndDisplay(seller, card, cardRowElement) {
-        const iframe = Utilities.createHiddenIframe(this.getCardSearchPageUrl(seller, card));
-        return new Promise(resolve => {
-            iframe.onload = () => {
-                const priceElement = iframe.contentWindow.document.querySelector("#UserOffersTable div.price-container span");
-                if (priceElement) {
+	// Fetches seller prices and displays them
+	async fetchSellerDataAndDisplay(seller, card, cardRowElement)
+	{
+		const iframe = Utilities.createHiddenIframe(this.getCardSearchPageUrl(seller, card));
+		return new Promise(resolve =>
+		{
+			iframe.onload = () =>
+			{
+				const priceElement = iframe.contentWindow.document.querySelector("#UserOffersTable div.price-container span");
+				if (priceElement)
+				{
 					const attributes = iframe.contentWindow.document.querySelector("#UserOffersTable div.product-attributes");
-                    const priceHtml = `
+					const priceHtml = `
                         <tr data-card="${card}">
                             <td></td>
                             <td> • </td>
@@ -198,20 +232,22 @@ const ShoppingCart = {
                             <td><i>${priceElement.innerText}</i></td>
 							<td></td>
                         </tr>`;
-                    $(cardRowElement).after(priceHtml);
-                }
-                $(iframe).remove();
-                resolve();
-            };
-        });
-    },
+					$(cardRowElement).after(priceHtml);
+				}
+				$(iframe).remove();
+				resolve();
+			};
+		});
+	},
 
-    // Generates the URL for the card search page of a seller
-    getCardSearchPageUrl(seller, card) {
-        return `${baseUrl}${language}/Magic/Users/${seller}/Offers/Singles?name=${card}&sortBy=price_asc`;
-    },
-	
-	addSettings() {
+	// Generates the URL for the card search page of a seller
+	getCardSearchPageUrl(seller, card)
+	{
+		return `${baseUrl}${language}/Magic/Users/${seller}/Offers/Singles?name=${card}&sortBy=price_asc`;
+	},
+
+	addSettings()
+	{
 		const settingsHTML = `
 			<div id="CMUSCSettings" class="card w-100 text-start mb-3">
 				<div class="card-body d-flex flex-column">
@@ -234,34 +270,40 @@ const ShoppingCart = {
 			</div>
 		`;
 		$('div.order-first').prepend(settingsHTML);
-		$("#CMUSCaddSellerButton").click(() => {
-			const input = $('#CMUSCaddSellerInput');
-			const sellerName = Utilities.sanitizeHTML(input.val().trim());
-			if (sellerName) {
-				let lSellers = this.getStoredSellers();
-				if (!lSellers.includes(sellerName)) {
-					lSellers.push(sellerName);
-					localStorage.setItem(this.sellersStorage, JSON.stringify(lSellers));
-					input.val('');
+		$("#CMUSCaddSellerButton").click(() =>
+			{
+				const input = $('#CMUSCaddSellerInput');
+				const sellerName = Utilities.sanitizeHTML(input.val()
+					.trim());
+				if (sellerName)
+				{
+					let lSellers = this.getStoredSellers();
+					if (!lSellers.includes(sellerName))
+					{
+						lSellers.push(sellerName);
+						localStorage.setItem(this.sellersStorage, JSON.stringify(lSellers));
+						input.val('');
+					}
 				}
-			}
-			this.updateSellers();
-		});		
+				this.updateSellers();
+			});
 	}
 };
 
 // Page navigation module
 const PageNavigator = {
-    init() {
-        const currentPath = document.location.pathname;
-        switch (true) {
-            case currentPath.endsWith(`${language}/Magic/ShoppingCart`):
-                ShoppingCart.init();
-                break;
-            default:
-		Utilities.displayMessage("Cardmarket Utilities: No functionality defined for this page.", true);
-        }
-    }
+	init()
+	{
+		const currentPath = document.location.pathname;
+		switch (true)
+		{
+			case currentPath.endsWith(`${language}/Magic/ShoppingCart`):
+				ShoppingCart.init();
+				break;
+			default:
+				Utilities.displayMessage("Cardmarket Utilities: No functionality defined for this page.", true);
+		}
+	}
 };
 
 // Initialize the PageNavigator
