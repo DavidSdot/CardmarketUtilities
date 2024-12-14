@@ -178,7 +178,7 @@ const ShoppingCart = {
 	// Handles search button clicks
 	async handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow) {
 		searchButton.prop("disabled", true);
-		$('tr[data-card="Swiftfoot Boots"]').remove();
+		$(`tr[data-card="${sectionSeller}-${cardName}"]`).remove();
 		for (const seller of this.sellers) {
 			if (seller !== sectionSeller) {
 				await this.fetchSellerDataAndDisplay(seller, cardName, cardRow);
@@ -197,7 +197,7 @@ const ShoppingCart = {
 				if (priceElement) {
 					const attributes = iframe.contentWindow.document.querySelector("#UserOffersTable div.product-attributes");
 					const priceHtml = `
-						<tr data-card="${card}">
+						<tr data-card="${seller}-${card}">
 							<td></td>
 							<td> • </td>
 							<td style="text-align: left;">
