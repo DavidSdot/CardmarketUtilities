@@ -181,7 +181,7 @@ const ShoppingCart = {
 		$(`tr[data-card="${sectionSeller}-${cardName}"]`).remove();
 		for (const seller of this.sellers) {
 			if (seller !== sectionSeller) {
-				await this.fetchSellerDataAndDisplay(seller, cardName, cardRow);
+				await this.fetchSellerDataAndDisplay(sectionSeller, seller, cardName, cardRow);
 				await Utilities.delay(500);
 			}
 		}
@@ -189,7 +189,7 @@ const ShoppingCart = {
 	},
 
 	// Fetches seller prices and displays them
-	async fetchSellerDataAndDisplay(seller, card, cardRowElement) {
+	async fetchSellerDataAndDisplay(sectionSeller, seller, card, cardRowElement) {
 		const iframe = Utilities.createHiddenIframe(this.getCardSearchPageUrl(seller, card));
 		return new Promise(resolve => {
 			iframe.onload = () => {
@@ -197,7 +197,7 @@ const ShoppingCart = {
 				if (priceElement) {
 					const attributes = iframe.contentWindow.document.querySelector("#UserOffersTable div.product-attributes");
 					const priceHtml = `
-						<tr data-card="${seller}-${card}">
+						<tr data-card="${sectionSeller}-${card}">
 							<td></td>
 							<td> • </td>
 							<td style="text-align: left;">
