@@ -1,279 +1,446 @@
-/*!
+/**
  * Cardmarket Utilities
  * ==================================
- * Description: Enhances Cardmarket.com.
- * Version: 1.0.0
+ * Description: Enhances Cardmarket.com functionality
+ * Version: 1.0.2
  * Author: DavidSdot
- * GitHub: https://github.com/your-username/repository-name
- * Homepage: https://your-username.github.io/repository-name/
  * License: MIT
- *
- * Modules:
- * - ShoppingCart: Check other sellers from the shopping cart for card prices.
- *
- * Usage:
- * 1. Add the bookmarklet to your browser:
- *    javascript:(function(){s=document.createElement('script');s.src='https://davidsdot.github.io/CardmarketUtilities/CardmarketUtilities.js?%27+Math.random();document.body.appendChild(s);})()
- * 2. Visit the Cardmarket shopping cart page.
- * 3. Click the bookmarklet to load the helper.
- *
- * Changelog:
- * - v1.0.0: Initial release
- * - v1.0.1: Add shopping cart settings
- *
- * Last Updated: 2024-12-11
  */
-
 "use strict";
 
-// Base URL and language setup
-const baseUrl = "https://www.cardmarket.com/";
-const language = document.location.pathname.substr(1, 2);
-
-// Utility module
-const Utilities = {
-
-	delay(ms) {
-		return new Promise(resolve => setTimeout(resolve, ms));
+/**
+ * Configuration and constants
+ * @typedef {Object} Config
+ */
+const CONFIG = {
+	BASE_URL: "https://www.cardmarket.com/",
+	LANGUAGE: document.location.pathname.slice(1, 3),
+	STORAGE_KEY: {
+		SELLERS: "CardmarketUtilitiesShoppingCartHelperSellers"
 	},
-
-	createHiddenIframe(src) {
-		const frameId = `iframe_${Math.random() * 1e8}`;
-		const iframe = $(`<iframe id="${frameId}" style="display:none;"></iframe>`).appendTo("body")[0];
-		iframe.src = src;
-		return iframe;
+	SELECTORS: {
+		ALERT_CONTAINER: '#AlertContainer',
+		SELLER_NAME: 'span.seller-name span > a[href*="/Magic/Users/"]',
+		SHIPMENT_BLOCK: 'section.shipment-block',
+		CARD_ROWS: 'tr[data-name]'
 	},
-
-	// Display message
-	displayMessage(text, warning) {
-		const alertId = `systemMessage${Math.random() * 1e8}`;
-		const alertHtml = `
-			<div role="alert" id="${alertId}" class="alert systemMessage ${(warning ? "alert-warning" : "alert-success")} alert-dismissible fade show">
-				<span class="fonticon-check-circle alert-icon"></span>
-				<button type="button" data-bs-dismiss="alert" aria-label="Close" class="btn-close"></button>
-				<div class="alert-content">
-					<h4 class="alert-heading">${text}</h4>
-				</div>
-			</div>`;
-
-		$('#AlertContainer').append(alertHtml);
-
-		setTimeout(() => {
-			$(`#${alertId}`).alert('close');
-			$('#AlertContainer').empty();
-		}, 5000);
-	},
-
-	// sanitize user inputs
-	sanitizeHTML(str) {
-		const tempDiv = document.createElement("div");
-		tempDiv.innerText = str;
-		return tempDiv.innerHTML;
-	},
-
-	// creat a unique id
-	createId(str) {
-		return crypto.randomUUID()
-			+ '-' + str
-			.replace(/[^a-z0-9 -]/g, '')
-			.replace(/\s+/g, '-')
-			.replace(/-+/g, '-');
+	TIMEOUTS: {
+		MESSAGE_DISPLAY: 5000,
+		REQUEST_DELAY: 750
 	}
 };
 
-// ShoppingCart module
-const ShoppingCart = {
+/**
+ * Utility methods for common operations
+ */
+class Utilities {
 
-	sellers: [],
+	/**
+	 * Creates a delay using Promise
+	 * @param {number} ms - Milliseconds to delay
+	 * @returns {Promise<void>}
+	 */
+	static delay(ms) {
+		return new Promise(resolve => setTimeout(resolve, ms));
+	}
 
-	sellersStorage: "CardmarketUtilitiesShoppingCartHelperSellers",
+	/**
+	 * Creates a hidden iframe
+	 * @param {string} src - Source URL for the iframe
+	 * @returns {HTMLIFrameElement} Created iframe element
+	 */
+	static createHiddenIframe(src) {
+		const iframe = document.createElement('iframe');
+		iframe.style.display = 'none';
+		iframe.src = src;
+		document.body.appendChild(iframe);
+		return iframe;
+	}
 
-	// Initialization
-	init() {
+	/**
+	 * Displays a system message to the user
+	 * @param {string} text - Message text
+	 * @param {boolean} [isWarning=false] - Whether the message is a warning
+	 */
+	static displayMessage(text, isWarning = false) {
+		const alertContainer = document.querySelector(CONFIG.SELECTORS.ALERT_CONTAINER);
+		if (!alertContainer) return;
+
+		const alertId = this.createId();
+		const alertClass = isWarning ? 'alert-warning' : 'alert-success';
+
+		const alertHtml = `
+            <div role="alert" id="${alertId}" class="alert systemMessage ${alertClass} alert-dismissible fade show">
+                <span class="fonticon-check-circle alert-icon"></span>
+                <button type="button" data-bs-dismiss="alert" aria-label="Close" class="btn-close"></button>
+                <div class="alert-content">
+                    <h4 class="alert-heading">${this.sanitizeHTML(text)}</h4>
+                </div>
+            </div>
+        `;
+
+		alertContainer.insertAdjacentHTML('beforeend', alertHtml);
+
+		const alertElement = document.getElementById(alertId);
+		if (alertElement) {
+			setTimeout(() => {
+				alertElement.remove();
+			}, CONFIG.TIMEOUTS.MESSAGE_DISPLAY);
+		}
+	}
+
+	/**
+	 * Sanitizes HTML to prevent XSS attacks
+	 * @param {string} str - String to sanitize
+	 * @returns {string} Sanitized string
+	 */
+	static sanitizeHTML(str) {
+		const tempDiv = document.createElement('div');
+		tempDiv.textContent = str;
+		return tempDiv.innerHTML;
+	}
+
+	/**
+	 * Creates a unique ID
+	 * @returns {string} Generated unique ID
+	 */
+	static createId() {
+		return `${crypto.randomUUID()}`;
+	}
+
+}
+
+/**
+ * Shopping Cart Utilities Module
+ */
+class ShoppingCart {
+	/** @type {string[]} List of sellers */
+	static sellers = [];
+
+	/**
+	 * Initializes the Shopping Cart module
+	 */
+	static init() {
 		this.addSettings();
 		this.updateSellers();
 		this.preparePage();
 		Utilities.displayMessage("Cardmarket Utilities: ShoppingCart is ready");
-	},
+	}
 
-	// Update sellers with page sellers and stored sellers
-	updateSellers() {
-		let storedSellers = this.getStoredSellers();
-		$('#CMUSCstoredSellers').empty();
-		for (const seller of storedSellers) {
-			let sellerId = Utilities.createId(seller);
-			$('#CMUSCstoredSellers').append(this.createSellerListItem(seller, sellerId));
-			$(`#CMUSCstoredSellersDelete_${sellerId}`).click(() => {
-				$(`#CMUSCstoredSellers_${sellerId}`).remove();
-				let storedSellers = this.getStoredSellers();
-				storedSellers = storedSellers.filter(e => e !== seller)
-				localStorage.setItem(this.sellersStorage, JSON.stringify(storedSellers));
+	/**
+	 * Updates the list of sellers from page and storage
+	 */
+	static updateSellers() {
+		const storedSellers = this.getStoredSellers();
+		const storedSellersList = document.getElementById('CMUSCstoredSellers');
+
+		if (storedSellersList) {
+			storedSellersList.innerHTML = '';
+			storedSellers.forEach(seller => {
+				const sellerId = Utilities.createId();
+				storedSellersList.insertAdjacentHTML('beforeend', this.createSellerListItem(seller, sellerId));
+
+				const deleteButton = document.getElementById(`CMUSCstoredSellersDelete_${sellerId}`);
+				if (deleteButton) {
+					deleteButton.addEventListener('click', () => {
+						console.log('Deleting seller:', seller);
+						const listItemToRemove = document.getElementById(`CMUSCstoredSellers_${sellerId}`);
+						if (listItemToRemove) {
+							listItemToRemove.remove();
+
+							const updatedSellers = this.getStoredSellers().filter(s => s !== seller);
+							localStorage.setItem(CONFIG.STORAGE_KEY.SELLERS, JSON.stringify(updatedSellers));
+
+							this.sellers = [...new Set([...this.getPageSellers(), ...updatedSellers])];
+						}
+					});
+				}
 			});
-
 		}
-		this.sellers = [...new Set(this.getPageSellers().concat(storedSellers))];
-	},
-	createSellerListItem(seller, id) {
+
+		this.sellers = [...new Set([...this.getPageSellers(), ...storedSellers])];
+	}
+
+	/**
+	 * Creates a seller list item HTML
+	 * @param {string} seller - Seller name
+	 * @param {string} id - Unique identifier
+	 * @returns {string} HTML for seller list item
+	 */
+	static createSellerListItem(seller, id) {
 		return `
-			<li id="CMUSCstoredSellers_${id}" style="margin-bottom:2px;">
-				<div class="input-group">
-					<button id="CMUSCstoredSellersDelete_${id}" class="btn btn-sm btn-outline-danger bg-white border-light text-danger">
-						<span class="fonticon-delete"></span>
-					</button>
-					<input class="form-control" value="${seller}" readonly="">
-				</div>
-			</li>
-		`;
-	},
+            <li id="CMUSCstoredSellers_${id}" style="margin-bottom:2px;">
+                <div class="input-group">
+                    <button id="CMUSCstoredSellersDelete_${id}" type="submit" class="btn btn-sm btn-outline-danger bg-white border-light text-danger">
+                        <span class="fonticon-delete" />
+                    </button>
+                    <input class="form-control" value="${seller}" readonly="">
+                </div>
+            </li>
+        `;
+	}
 
-	// Retrieves the list of sellers from the page and the local storage
-	getPageSellers() {
-		const pageSellers = Array
-			.from($('span.seller-name span > a[href*="/Magic/Users/"]'))
-			.map(seller => seller.innerText)
-		return [...new Set(pageSellers)]
-	},
+	/**
+	 * Retrieves sellers from the current page
+	 * @returns {string[]} Unique list of sellers
+	 */
+	static getPageSellers() {
+		const sellerElements = document.querySelectorAll(CONFIG.SELECTORS.SELLER_NAME);
+		const pageSellers = Array.from(sellerElements).map(el => el.textContent.trim());
+		return [...new Set(pageSellers)];
+	}
 
-	// Retrieves the list of sellers from local storage
-	getStoredSellers() {
-		const storedSellers = JSON.parse(localStorage.getItem(this.sellersStorage)) || [];
-		return [...new Set(storedSellers)]
-	},
+	/**
+	 * Retrieves sellers from local storage
+	 * @returns {string[]} Unique list of stored sellers
+	 */
+	static getStoredSellers() {
+		try {
+			const storedSellers = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEY.SELLERS)) || [];
+			return [...new Set(storedSellers)];
+		} catch (error) {
+			console.error('Error retrieving stored sellers:', error);
+			return [];
+		}
+	}
 
-	// Prepares the entire shopping cart page
-	async preparePage() {
-		const sections = $("section.shipment-block");
+	/**
+	 * Prepares the entire shopping cart page
+	 */
+	static async preparePage() {
+		const sections = document.querySelectorAll(CONFIG.SELECTORS.SHIPMENT_BLOCK);
 		for (const section of sections) {
 			await this.prepareSection(section);
 		}
-	},
+	}
 
-	// Prepares a single section
-	async prepareSection(section) {
-		const sectionSeller = $(section).find('a[href*="/Magic/Users/"]').first().text();
-		const rows = $(section).find("tr[data-name]");
+	/**
+	 * Prepares a single section
+	 * @param {HTMLElement} section - Section to prepare
+	 */
+	static async prepareSection(section) {
+		const sectionSeller = section.querySelector('a[href*="/Magic/Users/"]')?.textContent.trim() || '';
+		const rows = section.querySelectorAll(CONFIG.SELECTORS.CARD_ROWS);
+
 		for (const row of rows) {
 			await this.prepareRow(row, sectionSeller);
 		}
-	},
+	}
 
-	// Prepares a single card row
-	async prepareRow(cardRow, sectionSeller) {
-		const cardName = $(cardRow).attr("data-name").trim();
-		const iconsDiv = $(cardRow).find("td.info div.row");
-		iconsDiv.prepend(`
-			<div class="col-icon">
-				<button type="button" class="btn btn-sm bg-white border-light">
-					<span class="fonticon-search"></span>
-				</button>
-			</div>
-		`);
+	/**
+	 * Prepares a single card row
+	 * @param {HTMLElement} cardRow - Row to prepare
+	 * @param {string} sectionSeller - Seller of the current section
+	 */
+	static async prepareRow(cardRow, sectionSeller) {
+		const cardName = cardRow.getAttribute('data-name').trim();
+		const iconsDiv = cardRow.querySelector('td.info div.row');
 
-		const searchButton = iconsDiv.find("div.col-icon button");
-		searchButton.click(async () => {
-			await this.handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow);
-		});
-	},
+		if (!iconsDiv) return;
 
-	// Handles search button clicks
-	async handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow) {
-		searchButton.prop("disabled", true);
-		$(`tr[data-card="${sectionSeller}-${cardName}"]`).remove();
+		// Create search button
+		const searchButtonWrapper = document.createElement('div');
+		searchButtonWrapper.className = 'col-icon';
+		searchButtonWrapper.innerHTML = `
+            <button type="button" class="btn btn-sm bg-white border-light">
+                <span class="fonticon-search"></span>
+            </button>
+        `;
+
+		// Prepend the new button
+		iconsDiv.prepend(searchButtonWrapper);
+
+		const searchButton = searchButtonWrapper.querySelector('button');
+		if (searchButton) {
+			searchButton.addEventListener('click', async () => {
+				await this.handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow);
+			});
+		}
+	}
+
+	/**
+	 * Handles search button click event
+	 * @param {HTMLButtonElement} searchButton - Search button element
+	 * @param {string} cardName - Name of the card
+	 * @param {string} sectionSeller - Current section seller
+	 * @param {HTMLElement} cardRow - Current card row
+	 */
+	static async handleSearchButtonClick(searchButton, cardName, sectionSeller, cardRow) {
+		searchButton.disabled = true;
+		const existingAlternativeRows = document.querySelectorAll(`tr[data-card="${sectionSeller}-${cardName}"]`);
+
+		existingAlternativeRows.forEach(row => row.remove());
+
 		for (const seller of this.sellers) {
 			if (seller !== sectionSeller) {
 				await this.fetchSellerDataAndDisplay(sectionSeller, seller, cardName, cardRow);
-				await Utilities.delay(500);
+				await Utilities.delay(CONFIG.TIMEOUTS.REQUEST_DELAY);
 			}
 		}
-		searchButton.prop("disabled", false);
-	},
 
-	// Fetches seller prices and displays them
-	async fetchSellerDataAndDisplay(sectionSeller, seller, card, cardRowElement) {
+		if (document.querySelectorAll(`tr[data-card="${sectionSeller}-${cardName}"]`).length === 0) {
+			Utilities.displayMessage(`No alternatives found for: ${cardName}`, true);
+		}
+		searchButton.disabled = false;
+	}
+
+	/**
+	 * Fetches and displays seller data for a specific card
+	 * @param {string} sectionSeller - Current section seller
+	 * @param {string} seller - Seller to fetch data for
+	 * @param {string} card - Card name
+	 * @param {HTMLElement} cardRowElement - Original card row
+	 * @returns {Promise<void>}
+	 */
+	static async fetchSellerDataAndDisplay(sectionSeller, seller, card, cardRowElement) {
 		const iframe = Utilities.createHiddenIframe(this.getCardSearchPageUrl(seller, card));
+
 		return new Promise(resolve => {
 			iframe.onload = () => {
-				const priceElement = iframe.contentWindow.document.querySelector("#UserOffersTable div.price-container span");
-				if (priceElement) {
+				try {
+					if (iframe.contentWindow.location.href !== iframe.src) {
+						throw new Error('302');
+					}
+
+					const priceElement = iframe.contentWindow.document.querySelector("#UserOffersTable div.price-container span");
 					const attributes = iframe.contentWindow.document.querySelector("#UserOffersTable div.product-attributes");
-					const priceHtml = `
-						<tr data-card="${sectionSeller}-${card}">
-							<td></td>
-							<td> • </td>
-							<td style="text-align: left;">
-								<span><a target="_blank" href="${iframe.src}">${seller}</a></span>
-							</td>
-							<td style="text-align:left;">
-									<div style="display: inline-flex;align-items: center;">${attributes.innerHTML}</div>
-							</td>
-							<td><i>${priceElement.innerText}</i></td>
-							<td></td>
-						</tr>`;
-					$(cardRowElement).after(priceHtml);
+
+					if (priceElement && attributes) {
+						const priceHtml = document.createElement('tr');
+						priceHtml.setAttribute('data-card', `${sectionSeller}-${card}`);
+						priceHtml.innerHTML = `
+                            <td></td>
+                            <td> • </td>
+                            <td style="text-align: left;">
+                                <span><a target="_blank" href="${iframe.src}">${Utilities.sanitizeHTML(seller)}</a></span>
+                            </td>
+                            <td style="text-align:left;">
+                                <div style="display: inline-flex;align-items: center;">${attributes.innerHTML}</div>
+                            </td>
+                            <td><i>${priceElement.innerText}</i></td>
+                            <td></td>
+                        `;
+						cardRowElement.parentNode.insertBefore(priceHtml, cardRowElement.nextSibling);
+					}
+				} catch (error) {
+					console.error('Error processing seller data:', error);
+					if (error.message === '302') {
+						Utilities.displayMessage(`Could not find seller : ${seller}`, true);
+					}
+				} finally {
+					iframe.remove();
+					resolve();
 				}
-				$(iframe).remove();
+			};
+			// Handle potential iframe loading errors
+			iframe.onerror = () => {
+				console.error(`Failed to load iframe for seller ${seller}`);
+				Utilities.displayMessage(`Failed to load data for seller ${seller}`, true);
+				iframe.remove();
 				resolve();
 			};
 		});
-	},
-
-	// Generates the URL for the card search page of a seller
-	getCardSearchPageUrl(seller, card) {
-		return `${baseUrl}${language}/Magic/Users/${seller}/Offers/Singles?name=${card}&sortBy=price_asc`;
-	},
-
-	addSettings() {
-		const settingsHTML = `
-			<div id="CMUSCSettings" class="card w-100 text-start mb-3">
-				<div class="card-body d-flex flex-column">
-					<div>
-						<h3 class="text-size-regular">Shopping Cart Helper</h3>
-						<div class="text-break">
-							<div>
-								<h2 class="small" style="margin-right: 5px;">Add Sellers</h2>
-								<div style="display: flex; align-content: center;">
-									<input id="CMUSCaddSellerInput" class="form-control form-control-sm" style="height:15px; margin-right:10px" type="text"/>
-									<button id="CMUSCaddSellerButton" type="submit" class="btn btn-sm bg-white border-light">
-										<span class="fonticon-plus"></span>
-									</button>
-								</div>
-								<ul id="CMUSCstoredSellers" style="margin-top:5px;margin-bottom:0;list-style:none;padding:0;">
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		`;
-		$('div.order-first').prepend(settingsHTML);
-		$("#CMUSCaddSellerButton").click(() => {
-			const input = $('#CMUSCaddSellerInput');
-			const sellerName = Utilities.sanitizeHTML(input.val().trim());
-			if (sellerName) {
-				let lSellers = this.getStoredSellers();
-				if (!lSellers.includes(sellerName)) {
-					lSellers.push(sellerName);
-					localStorage.setItem(this.sellersStorage, JSON.stringify(lSellers));
-					input.val('');
-				}
-			}
-			this.updateSellers();
-		});
 	}
-};
 
-// Page navigation module
-const PageNavigator = {
-	init() {
-		const currentPath = document.location.pathname;
-		switch (true) {
-			case currentPath.endsWith(`${language}/Magic/ShoppingCart`):
-				ShoppingCart.init();
-				break;
-			default:
-				Utilities.displayMessage("Cardmarket Utilities: No functionality defined for this page.", true);
+	/**
+	 * Generates the URL for a seller's card search page
+	 * @param {string} seller - Seller name
+	 * @param {string} card - Card name
+	 * @returns {string} Search page URL
+	 */
+	static getCardSearchPageUrl(seller, card) {
+		return `${CONFIG.BASE_URL}${CONFIG.LANGUAGE}/Magic/Users/${encodeURIComponent(seller)}/Offers/Singles?name=${encodeURIComponent(card)}&sortBy=price_asc`;
+	}
+
+	/**
+	 * Adds settings UI to the page
+	 * @private
+	 */
+	static addSettings() {
+		const settingsHTML = `
+            <div id="CMUSCSettings" class="card w-100 text-start mb-3">
+                <div class="card-body d-flex flex-column">
+                    <div>
+                        <h3 class="text-size-regular">Shopping Cart Helper</h3>
+                        <div class="text-break">
+                            <div>
+                                <h2 class="small" style="margin-right: 5px;">Add Sellers</h2>
+                                <div style="display: flex; align-content: center;">
+                                    <input id="CMUSCaddSellerInput" 
+                                           class="form-control form-control-sm" 
+                                           style="height:15px; margin-right:10px" 
+                                           type="text" 
+                                           placeholder="Enter seller name"/>
+                                    <button id="CMUSCaddSellerButton" 
+                                            type="submit" 
+                                            class="btn btn-sm bg-white border-light">
+                                        <span class="fonticon-plus"></span>
+                                    </button>
+                                </div>
+                                <ul id="CMUSCstoredSellers" 
+                                    style="margin-top:5px;margin-bottom:0;list-style:none;padding:0;">
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+		const orderFirstDiv = document.querySelector('div.order-first');
+		if (orderFirstDiv) {
+			orderFirstDiv.insertAdjacentHTML('afterbegin', settingsHTML);
+		}
+
+		this.initializeAddSellerButton();
+	}
+
+	/**
+	 * Initializes the add seller button functionality
+	 * @private
+	 */
+	static initializeAddSellerButton() {
+		const addSellerButton = document.getElementById('CMUSCaddSellerButton');
+		const addSellerInput = document.getElementById('CMUSCaddSellerInput');
+
+		if (addSellerButton && addSellerInput) {
+			addSellerButton.addEventListener('click', () => {
+				const sellerName = Utilities.sanitizeHTML(addSellerInput.value.trim());
+
+				if (sellerName) {
+					let lSellers = this.getStoredSellers();
+
+					if (!lSellers.includes(sellerName)) {
+						lSellers.push(sellerName);
+						localStorage.setItem(CONFIG.STORAGE_KEY.SELLERS, JSON.stringify(lSellers));
+						addSellerInput.value = '';
+					}
+				}
+
+				this.updateSellers();
+			});
 		}
 	}
-};
 
-// Initialize the PageNavigator
+}
+
+/**
+ * Page Navigation Module
+ */
+class PageNavigator {
+	/**
+	 * Initializes page-specific functionality
+	 */
+	static init() {
+		const currentPath = document.location.pathname;
+
+		if (currentPath.endsWith(`${CONFIG.LANGUAGE}/Magic/ShoppingCart`)) {
+			ShoppingCart.init();
+		} else {
+			Utilities.displayMessage("Cardmarket Utilities: No functionality defined for this page.", true);
+		}
+	}
+}
+
+// Initialize the application
 PageNavigator.init();
