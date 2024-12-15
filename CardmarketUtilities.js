@@ -2,7 +2,6 @@
  * Cardmarket Utilities
  * ==================================
  * Description: Enhances Cardmarket.com functionality
- * Version: 1.0.2
  * Author: DavidSdot
  * License: MIT
  */
@@ -274,14 +273,33 @@ class ShoppingCart {
 		for (const seller of this.sellers) {
 			if (seller !== sectionSeller) {
 				await this.fetchSellerDataAndDisplay(sectionSeller, seller, cardName, cardRow);
+				this.sortAlternativeRows(cardRow, sectionSeller, cardName);
 				await Utilities.delay(CONFIG.TIMEOUTS.REQUEST_DELAY);
 			}
 		}
 
 		if (document.querySelectorAll(`tr[data-card="${sectionSeller}-${cardName}"]`).length === 0) {
 			Utilities.displayMessage(`No alternatives found for: ${cardName}`, true);
-		}
+		} 
 		searchButton.disabled = false;
+	}
+
+	/**
+	* Sorts the alternative rows by a specific td
+	* @param {HTMLElement} cardRow - Original card row
+	* @param {string} sectionSeller - Current section seller
+	* @param {string} cardName - Name of the card
+	*/
+	static sortAlternativeRows(cardRow, sectionSeller, cardName) {
+		const alternativeRows = Array.from(document.querySelectorAll(`tr[data-card="${sectionSeller}-${cardName}"]`));
+		const sortedRows = alternativeRows.sort((a, b) => {
+			const priceA = parseFloat(a.querySelector('td:nth-child(5) i').innerText.replace(/[^\d.-]/g, ''));
+			const priceB = parseFloat(b.querySelector('td:nth-child(5) i').innerText.replace(/[^\d.-]/g, ''));
+			console.log(priceA, priceB);
+			return priceB - priceA;
+		});
+
+		sortedRows.forEach(row => cardRow.insertAdjacentElement('afterend', row));
 	}
 
 	/**
@@ -320,7 +338,7 @@ class ShoppingCart {
                             <td><i>${priceElement.innerText}</i></td>
                             <td></td>
                         `;
-						cardRowElement.parentNode.insertBefore(priceHtml, cardRowElement.nextSibling);
+						cardRowElement.insertAdjacentElement('afterend', priceHtml);
 					}
 				} catch (error) {
 					console.error('Error processing seller data:', error);
